@@ -30,7 +30,8 @@ from services.explanation import generate_explanation
 app = Flask(__name__)
 CORS(app)
 
-app.config["JWT_SECRET_KEY"] = "your-secret-key-change-this"
+# app.config["JWT_SECRET_KEY"] = "your-secret-key-change-this"
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False
 jwt = JWTManager(app)
 def admin_required():
@@ -44,13 +45,13 @@ def admin_required():
 
     return None
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="pm_internship_engine"
-    )
+# def get_db_connection():
+#     return mysql.connector.connect(
+#         host="localhost",
+#         user="root",
+#         password="",
+#         database="pm_internship_engine"
+#     )
 
 
 @app.route("/")

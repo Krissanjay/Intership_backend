@@ -1463,9 +1463,9 @@ def get_recommendations():
     )
         connection.commit()
 
-# Close database
-        cursor.close()
-        connection.close()
+    # Close database
+    cursor.close()
+    connection.close()
 
     return jsonify({
         "success": True,

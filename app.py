@@ -536,9 +536,14 @@ def get_internships():
 
     cursor.execute(
         """
-        SELECT *
-        FROM internships
-        ORDER BY created_at DESC
+        SELECT 
+            i.*,
+            GROUP_CONCAT(s.skill_name SEPARATOR ', ') AS required_skills
+        FROM internships i
+        LEFT JOIN internship_skills isk ON i.internship_id = isk.internship_id
+        LEFT JOIN skills s ON isk.skill_id = s.skill_id
+        GROUP BY i.internship_id
+        ORDER BY i.created_at DESC
         """
     )
 

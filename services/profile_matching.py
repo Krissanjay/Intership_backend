@@ -4,13 +4,15 @@ def calculate_profile_match(student_profile, internship):
 
     # Degree match
     if internship["eligible_degree"]:
-        if internship["eligible_degree"].lower() in \
+        if student_profile["degree"] and \
+           internship["eligible_degree"].lower() in \
            student_profile["degree"].lower():
             score += 50
 
     # Branch match
     if internship["eligible_branch"]:
-        if internship["eligible_branch"].lower() in \
+        if student_profile["branch"] and \
+           internship["eligible_branch"].lower() in \
            student_profile["branch"].lower():
             score += 50
 

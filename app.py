@@ -1262,6 +1262,7 @@ def get_recommendations():
         """
         SELECT *
         FROM internships
+        WHERE is_active = True
         ORDER BY created_at DESC
         """
     )

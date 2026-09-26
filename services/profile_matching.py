@@ -5,26 +5,27 @@ def normalize_string(s):
     return re.sub(r'[^a-z0-9]', '', str(s).lower())
 
 def calculate_profile_match(student_profile, internship):
-
-    score = 0
+    total_criteria = 0
+    matched_criteria = 0
 
     # Degree match
-    if internship["eligible_degree"]:
-        if student_profile["degree"]:
+    if internship.get("eligible_degree"):
+        total_criteria += 1
+        if student_profile.get("degree"):
             required_degrees = [normalize_string(d) for d in internship["eligible_degree"].split(',')]
             if normalize_string(student_profile["degree"]) in required_degrees:
-                score += 50
+                matched_criteria += 1
 
     # Branch match
-    if internship["eligible_branch"]:
-        if student_profile["branch"]:
+    if internship.get("eligible_branch"):
+        total_criteria += 1
+        if student_profile.get("branch"):
             required_branches = [normalize_string(b) for b in internship["eligible_branch"].split(',')]
             if normalize_string(student_profile["branch"]) in required_branches:
-                score += 50
+                matched_criteria += 1
 
     # If no degree/branch restrictions exist
-    if not internship["eligible_degree"] and \
-       not internship["eligible_branch"]:
-        score = 100
+    if total_criteria == 0:
+        return 100
 
-    return score
+    return int((matched_criteria / total_criteria) * 100)

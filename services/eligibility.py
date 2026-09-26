@@ -22,11 +22,11 @@ def check_eligibility(student_profile, internship):
     # Degree check
     if internship["eligible_degree"]:
 
-        required_degree = internship["eligible_degree"].strip().lower()
+        required_degrees = [d.strip().lower() for d in internship["eligible_degree"].split(',')]
         
         if student_profile["degree"]:
             student_degree = student_profile["degree"].strip().lower()
-            if required_degree not in student_degree:
+            if student_degree not in required_degrees:
                 eligible = False
                 reasons.append(
                     f"Degree requirement: {internship['eligible_degree']}"
@@ -40,11 +40,11 @@ def check_eligibility(student_profile, internship):
     # Branch check
     if internship["eligible_branch"]:
 
-        required_branch = internship["eligible_branch"].strip().lower()
+        required_branches = [b.strip().lower() for b in internship["eligible_branch"].split(',')]
         
         if student_profile["branch"]:
             student_branch = student_profile["branch"].strip().lower()
-            if required_branch not in student_branch:
+            if student_branch not in required_branches:
                 eligible = False
                 reasons.append(
                     f"Branch requirement: {internship['eligible_branch']}"

@@ -420,6 +420,92 @@ def save_student_skills():
         "message": "Skills saved successfully"
     })
 
+@app.route("/api/student-skills/add", methods=["POST"])
+@jwt_required()
+def add_student_skill():
+
+    student_id = get_jwt_identity()
+    data = request.get_json()
+
+    skill_id = data.get("skill_id")
+    skill_name = data.get("skill_name")
+    proficiency = data.get("proficiency_level", "Beginner")
+
+    if not skill_id and not skill_name:
+        return jsonify({
+            "success": False,
+            "message": "Either skill_id or skill_name is required"
+        }), 400
+
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        # If skill_name is provided but no skill_id, find or create the skill
+        if not skill_id and skill_name:
+            cursor.execute(
+                "SELECT skill_id FROM skills WHERE LOWER(skill_name) = LOWER(%s)",
+                (skill_name.strip(),)
+            )
+            existing_skill = cursor.fetchone()
+            
+            if existing_skill:
+                skill_id = existing_skill["skill_id"]
+            else:
+                # Add new skill to skills table
+                cursor.execute(
+                    "INSERT INTO skills (skill_name) VALUES (%s)",
+                    (skill_name.strip(),)
+                )
+                skill_id = cursor.lastrowid
+                
+        # Check if skill already exists for this student
+        cursor.execute(
+            "SELECT * FROM student_skills WHERE student_id = %s AND skill_id = %s",
+            (student_id, skill_id)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            # Update proficiency if it already exists
+            cursor.execute(
+                """
+                UPDATE student_skills 
+                SET proficiency_level = %s 
+                WHERE student_id = %s AND skill_id = %s
+                """,
+                (proficiency, student_id, skill_id)
+            )
+            message = "Skill proficiency updated successfully"
+        else:
+            # Insert new student skill
+            cursor.execute(
+                """
+                INSERT INTO student_skills (student_id, skill_id, proficiency_level)
+                VALUES (%s, %s, %s)
+                """,
+                (student_id, skill_id, proficiency)
+            )
+            message = "Skill added successfully"
+
+        connection.commit()
+        return jsonify({
+            "success": True,
+            "message": message,
+            "skill_id": skill_id
+        })
+
+    except Exception as e:
+        connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": "Failed to add skill",
+            "error": str(e)
+        }), 500
+    finally:
+        cursor.close()
+        connection.close()
+
 @app.route("/api/student-skills", methods=["GET"])
 @jwt_required()
 def get_student_skills():

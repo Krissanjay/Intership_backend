@@ -1540,7 +1540,7 @@ def get_recommendations():
         (
             student_id,
             recommendation["internship_id"],
-            100,
+            recommendation["profile_match_score"],
             recommendation["skill_match_score"],
             recommendation["semantic_score"],
             recommendation["overall_score"],
@@ -1582,7 +1582,7 @@ def get_saved_recommendations():
         SELECT
             r.recommendation_id,
             r.internship_id,
-            r.eligibility_score,
+            r.eligibility_score AS profile_match_score,
             r.skill_match_score,
             r.semantic_score,
             r.overall_score,

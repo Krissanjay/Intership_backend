@@ -1,26 +1,31 @@
+
 import PyPDF2
 from docx import Document
+import os
 
 
 def extract_text_from_pdf(file_path):
-
     text = ""
 
     with open(file_path, "rb") as file:
-
         reader = PyPDF2.PdfReader(file)
 
-        for page in reader.pages:
-            page_text = page.extract_text()
+        print("PDF pages:", len(reader.pages))
 
-            if page_text:
-                text += page_text + "\n"
+        for page_number, page in enumerate(reader.pages, start=1):
+            page_text = page.extract_text() or ""
 
-    return text
+            print(
+                f"Page {page_number} extracted characters:",
+                len(page_text)
+            )
+
+            text += page_text + "\n"
+
+    return text.strip()
 
 
 def extract_text_from_docx(file_path):
-
     document = Document(file_path)
 
     text = ""
@@ -28,15 +33,16 @@ def extract_text_from_docx(file_path):
     for paragraph in document.paragraphs:
         text += paragraph.text + "\n"
 
-    return text
+    return text.strip()
 
 
 def extract_resume_text(file_path):
+    extension = os.path.splitext(file_path)[1].lower()
 
-    if file_path.lower().endswith(".pdf"):
+    if extension == ".pdf":
         return extract_text_from_pdf(file_path)
 
-    elif file_path.lower().endswith(".docx"):
+    elif extension == ".docx":
         return extract_text_from_docx(file_path)
 
     else:

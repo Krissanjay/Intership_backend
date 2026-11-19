@@ -1064,6 +1064,12 @@ def upload_resume():
     try:
 
         extracted_text = extract_resume_text(file_path)
+        print("========== RESUME EXTRACTION DEBUG ==========")
+        print("File:", filename)
+        print("File path:", file_path)  
+        print("Extracted text length:", len(extracted_text or ""))
+        print("Extracted text preview:", (extracted_text or "")[:500])
+        print("=============================================")
 
     except Exception as e:
 
@@ -1275,6 +1281,7 @@ def semantic_score(internship_id):
 
 @app.route("/api/recommendations", methods=["GET"])
 @jwt_required()
+
 def get_recommendations():
 
     student_id = get_jwt_identity()
@@ -1282,7 +1289,7 @@ def get_recommendations():
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
 
-    # Get student profile
+    # 1. Get student profile
     cursor.execute(
         """
         SELECT *
@@ -1297,13 +1304,12 @@ def get_recommendations():
     if not student_profile:
         cursor.close()
         connection.close()
-
         return jsonify({
             "success": False,
             "message": "Please complete your profile first"
         }), 404
 
-    # Get latest resume
+    # 2. Get latest resume
     cursor.execute(
         """
         SELECT extracted_text
@@ -1320,13 +1326,22 @@ def get_recommendations():
     if not resume:
         cursor.close()
         connection.close()
-
         return jsonify({
             "success": False,
             "message": "Please upload your resume first"
         }), 404
 
-    # Get student skills
+    resume_text = (resume.get("extracted_text") or "").strip()
+
+    if not resume_text:
+        cursor.close()
+        connection.close()
+        return jsonify({
+            "success": False,
+            "message": "Your uploaded resume contains no extracted text. Please upload it again."
+        }), 400
+
+    # 3. Get student skills
     cursor.execute(
         """
         SELECT
@@ -1334,8 +1349,7 @@ def get_recommendations():
             s.skill_name,
             ss.proficiency_level
         FROM student_skills ss
-        JOIN skills s
-            ON ss.skill_id = s.skill_id
+        JOIN skills s ON ss.skill_id = s.skill_id
         WHERE ss.student_id = %s
         """,
         (student_id,)
@@ -1343,12 +1357,12 @@ def get_recommendations():
 
     student_skills = cursor.fetchall()
 
-    # Get internships
+    # 4. Get active internships
     cursor.execute(
         """
         SELECT *
         FROM internships
-        WHERE is_active = True
+        WHERE is_active = TRUE
         ORDER BY created_at DESC
         """
     )
@@ -1357,31 +1371,18 @@ def get_recommendations():
 
     recommendations = []
 
-    from services.eligibility import check_eligibility
-    from services.matching import calculate_skill_match
-    from services.profile_matching import calculate_profile_match
-    from services.semantic_matching import calculate_semantic_score
-    from services.scoring import calculate_overall_score
-
     for internship in internships:
 
-        # -------------------------
-        # 1. Eligibility
-        # -------------------------
-
+        # 5. Eligibility
         eligibility_result = check_eligibility(
             student_profile,
             internship
         )
 
-        # Do not recommend ineligible internships
         if not eligibility_result["eligible"]:
             continue
 
-        # -------------------------
-        # 2. Internship Skills
-        # -------------------------
-
+        # 6. Internship skills
         cursor.execute(
             """
             SELECT
@@ -1389,8 +1390,7 @@ def get_recommendations():
                 s.skill_name,
                 isk.importance
             FROM internship_skills isk
-            JOIN skills s
-                ON isk.skill_id = s.skill_id
+            JOIN skills s ON isk.skill_id = s.skill_id
             WHERE isk.internship_id = %s
             """,
             (internship["internship_id"],)
@@ -1398,10 +1398,7 @@ def get_recommendations():
 
         internship_skills = cursor.fetchall()
 
-        # -------------------------
-        # 3. Skill Match
-        # -------------------------
-
+        # 7. Skill match
         skill_result = calculate_skill_match(
             student_skills,
             internship_skills
@@ -1409,148 +1406,114 @@ def get_recommendations():
 
         skill_match_score = skill_result["score"]
 
-        # -------------------------
-        # 4. Profile Match
-        # -------------------------
-
+        # 8. Profile match
         profile_match_score = calculate_profile_match(
             student_profile,
             internship
         )
 
-        # -------------------------
-        # 5. Semantic Match
-        # -------------------------
+        # 9. Semantic match
+        internship_description = (
+            internship.get("description") or ""
+        ).strip()
+
+        print("\n========== SEMANTIC DEBUG ==========")
+        print("Student ID:", student_id)
+        print("Resume length:", len(resume_text))
+        print("Resume preview:", resume_text[:300])
+        print("Internship ID:", internship["internship_id"])
+        print("Internship description:", internship_description)
+        print("====================================")
 
         semantic_score = calculate_semantic_score(
-            resume["extracted_text"],
-            internship["description"]
+            resume_text,
+            internship_description
         )
 
-        # -------------------------
-        # 6. Overall Score
-        # -------------------------
+        print("Calculated semantic score:", semantic_score)
 
+        # 10. Overall score
         overall_score = calculate_overall_score(
             skill_match_score,
             semantic_score,
             profile_match_score
         )
+
+        # 11. Explanation
         explanation_result = generate_explanation(
-    overall_score,
-    skill_match_score,
-    semantic_score,
-    profile_match_score,
-    skill_result["matched_skills"],
-    skill_result["missing_skills"]
-)
+            overall_score,
+            skill_match_score,
+            semantic_score,
+            profile_match_score,
+            skill_result["matched_skills"],
+            skill_result["missing_skills"]
+        )
 
-        # -------------------------
-        # 7. Recommendation
-        # -------------------------
-
+        # 12. Build recommendation
         recommendations.append({
-
-            "internship_id":
-                internship["internship_id"],
-
-            "company_name":
-                internship["company_name"],
-
-            "role":
-                internship["role"],
-
-            "description":
-                internship["description"],
-
-            "location":
-                internship["location"],
-
-            "duration":
-                internship["duration"],
-
-            "stipend":
-                internship["stipend"],
-
-            "application_deadline":
-                internship["application_deadline"],
-
-            "skill_match_score":
-                skill_match_score,
-
-            "semantic_score":
-                semantic_score,
-
-            "profile_match_score":
-                profile_match_score,
-
-            "overall_score":
-                overall_score,
-
-            "matched_skills":
-                skill_result["matched_skills"],
-
-            "missing_skills":
-                skill_result["missing_skills"],
-
-            "eligibility_reasons":
-                eligibility_result["reasons"],
-            "explanation":
-        explanation_result["explanation"],
-            "skill_gap":
-        explanation_result["skill_gap"]
+            "internship_id": internship["internship_id"],
+            "company_name": internship["company_name"],
+            "role": internship["role"],
+            "description": internship["description"],
+            "location": internship["location"],
+            "duration": internship["duration"],
+            "stipend": internship["stipend"],
+            "application_deadline": internship["application_deadline"],
+            "skill_match_score": skill_match_score,
+            "semantic_score": semantic_score,
+            "profile_match_score": profile_match_score,
+            "overall_score": overall_score,
+            "matched_skills": skill_result["matched_skills"],
+            "missing_skills": skill_result["missing_skills"],
+            "eligibility_reasons": eligibility_result["reasons"],
+            "explanation": explanation_result["explanation"],
+            "skill_gap": explanation_result["skill_gap"]
         })
 
-    
-
-    # -------------------------
-    # Rank internships
-    # -------------------------
-
+    # 13. Rank internships
     recommendations.sort(
         key=lambda x: x["overall_score"],
         reverse=True
     )
-    connection = get_db_connection()
-    cursor = connection.cursor()
+
+    # 14. Save recommendations
     cursor.execute(
-    """
-    DELETE FROM recommendations
-    WHERE student_id = %s
-    """,
-    (student_id,)
+        """
+        DELETE FROM recommendations
+        WHERE student_id = %s
+        """,
+        (student_id,)
     )
 
     for recommendation in recommendations:
         cursor.execute(
-        """
-        INSERT INTO recommendations
-        (
-            student_id,
-            internship_id,
-            eligibility_score,
-            skill_match_score,
-            semantic_score,
-            overall_score,
-            explanation,
-            skill_gap
+            """
+            INSERT INTO recommendations
+            (
+                student_id,
+                internship_id,
+                eligibility_score,
+                skill_match_score,
+                semantic_score,
+                overall_score,
+                explanation,
+                skill_gap
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                student_id,
+                recommendation["internship_id"],
+                recommendation["profile_match_score"],
+                recommendation["skill_match_score"],
+                recommendation["semantic_score"],
+                recommendation["overall_score"],
+                recommendation["explanation"],
+                recommendation["skill_gap"]
+            )
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            student_id,
-            recommendation["internship_id"],
-            recommendation["profile_match_score"],
-            recommendation["skill_match_score"],
-            recommendation["semantic_score"],
-            recommendation["overall_score"],
-            recommendation["explanation"],
-            recommendation["skill_gap"]
-        )
-    )
-        connection.commit()
 
-    # Close database
+    connection.commit()
     cursor.close()
     connection.close()
 
@@ -1560,13 +1523,15 @@ def get_recommendations():
         "total_recommendations": len(recommendations),
         "recommendations": recommendations
     })
-    
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0"
+
+    response.headers["Cache-Control"] = (
+        "no-store, no-cache, must-revalidate, post-check=0, "
+        "pre-check=0, max-age=0"
+    )
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "-1"
-    
+
     return response
-    
 
 @app.route("/api/recommendations/saved", methods=["GET"])
 @jwt_required()

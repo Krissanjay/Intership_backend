@@ -1,29 +1,33 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
+
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Load model once when the application starts
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def calculate_semantic_score(resume_text, internship_description):
+
     if not resume_text or not internship_description:
         return 0.0
 
-    documents = [
-        str(resume_text),
-        str(internship_description)
-    ]
+    resume_text = str(resume_text).strip()
+    internship_description = str(internship_description).strip()
 
-    vectorizer = TfidfVectorizer(
-        stop_words="english",
-        ngram_range=(1, 2),
-        max_features=5000
-    )
+    if not resume_text or not internship_description:
+        return 0.0
 
-    tfidf_matrix = vectorizer.fit_transform(documents)
+    embeddings = model.encode([
+        resume_text,
+        internship_description
+    ])
 
     similarity = cosine_similarity(
-        tfidf_matrix[0:1],
-        tfidf_matrix[1:2]
+        [embeddings[0]],
+        [embeddings[1]]
     )[0][0]
 
-    score = float(similarity) * 100
+    # Convert similarity to percentage
+    score = max(0.0, float(similarity)) * 100
 
     return round(score, 2)
